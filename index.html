@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>산소 가용시간 계산기</title>
+
+  <!-- PWA 설정 -->
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#0f172a"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="산소계산기"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 50%, #0f2027 100%);
+      font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
+      overflow-y: auto;
+    }
+    .container { width: 100%; max-width: 420px; padding: 24px 0 32px; }
+
+    /* Header */
+    .header { text-align: center; margin-bottom: 24px; }
+    .header .icon { font-size: 44px; margin-bottom: 8px; filter: drop-shadow(0 0 16px #60a5fa88); }
+    .header h1 { color: #e0f2fe; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+    .header p  { color: #94a3b8; font-size: 12px; }
+
+    /* Card */
+    .card {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 22px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    }
+
+    /* Section */
+    .section { margin-bottom: 20px; }
+    .section-label {
+      color: #94a3b8; font-size: 10px; font-weight: 700;
+      letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 10px;
+    }
+
+    /* Tank buttons */
+    .tank-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+    .tank-btn {
+      padding: 15px 4px; border-radius: 12px;
+      border: 2px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: #94a3b8; font-size: 15px; font-weight: 500;
+      cursor: pointer; transition: all 0.18s;
+      font-family: inherit;
+    }
+    .tank-btn.active {
+      border-color: #38bdf8;
+      background: rgba(56,189,248,0.15);
+      color: #38bdf8; font-weight: 800;
+    }
+
+    /* Unit toggle */
+    .unit-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .unit-label { color: #64748b; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .unit-toggle {
+      display: flex;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+    }
+    .unit-btn {
+      padding: 8px 22px; border: none;
+      background: transparent; color: #64748b;
+      font-size: 13px; font-weight: 400; cursor: pointer;
+      transition: all 0.15s; font-family: inherit;
+    }
+    .unit-btn:first-child { border-right: 1px solid rgba(255,255,255,0.08); }
+    .unit-btn.active { background: rgba(167,139,250,0.25); color: #a78bfa; font-weight: 800; }
+
+    /* Input grid */
+    .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .input-wrap { display: flex; flex-direction: column; }
+    .input-wrap label { color: #64748b; font-size: 11px; margin-bottom: 5px; }
+    .input-wrap .field { position: relative; }
+    .input-wrap input {
+      width: 100%; padding: 11px 46px 11px 13px;
+      border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.06); color: #e2e8f0;
+      font-size: 15px; font-weight: 600; font-family: inherit;
+      -webkit-appearance: none;
+    }
+    .input-wrap input:focus { outline: none; border-color: rgba(56,189,248,0.5); }
+    .input-wrap .unit-tag {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      color: #475569; font-size: 10px; font-weight: 700; pointer-events: none;
+    }
+
+    /* Progress bar */
+    .prog-wrap { margin-top: 10px; }
+    .prog-track { height: 7px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden; }
+    .prog-fill  { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+    .prog-pct   { color: #64748b; font-size: 11px; margin-top: 4px; text-align: right; }
+
+    /* Flow quick buttons */
+    .flow-btns { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+    .flow-btn {
+      padding: 5px 11px; border-radius: 99px;
+      border: 1.5px solid rgba(255,255,255,0.1);
+      background: transparent; color: #64748b;
+      font-size: 12px; cursor: pointer; transition: all 0.15s;
+      font-family: inherit;
+    }
+    .flow-btn.active { border-color: #38bdf8; background: rgba(56,189,248,0.15); color: #38bdf8; }
+
+    /* Result */
+    .result {
+      padding: 22px; border-radius: 16px; text-align: center;
+      animation: fadeIn 0.35s ease;
+    }
+    .result-status { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+    .result-time   { font-size: 42px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+    .result-liters { font-size: 12px; color: #64748b; margin-top: 8px; }
+    .result-warn   { margin-top: 10px; padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+
+    /* Empty state */
+    .empty {
+      padding: 14px; border-radius: 12px;
+      background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.1);
+      text-align: center; color: #475569; font-size: 13px;
+    }
+
+    /* Footer */
+    .footer { text-align: center; color: #334155; font-size: 10px; margin-top: 14px; }
+
+    /* Install banner */
+    .install-banner {
+      display: none;
+      background: rgba(56,189,248,0.12);
+      border: 1px solid rgba(56,189,248,0.3);
+      border-radius: 14px; padding: 14px 16px;
+      margin-bottom: 16px; text-align: center;
+    }
+    .install-banner p { color: #7dd3fc; font-size: 13px; margin-bottom: 10px; line-height: 1.5; }
+    .install-btn {
+      background: #38bdf8; color: #0f172a;
+      border: none; border-radius: 99px;
+      padding: 9px 24px; font-size: 13px; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+    }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="icon">🫁</div>
+    <h1>의료용 산소 가용시간 계산기</h1>
+    <p>Medical Oxygen Duration Calculator</p>
+  </div>
+
+  <!-- 설치 안내 배너 -->
+  <div class="install-banner" id="installBanner">
+    <p>📱 홈 화면에 앱으로 설치하면<br>더 편리하게 사용할 수 있어요!</p>
+    <button class="install-btn" id="installBtn">홈 화면에 추가</button>
+  </div>
+
+  <div class="card">
+
+    <!-- 탱크 크기 -->
+    <div class="section">
+      <div class="section-label">산소탱크 크기 (실린더 용량)</div>
+      <div class="tank-grid" id="tankGrid">
+        <button class="tank-btn" data-vol="2.8">2.8 L</button>
+        <button class="tank-btn active" data-vol="5">5 L</button>
+        <button class="tank-btn" data-vol="10">10 L</button>
+        <button class="tank-btn" data-vol="15">15 L</button>
+      </div>
+    </div>
+
+    <!-- 압력 설정 -->
+    <div class="section">
+      <div class="section-label">압력 설정</div>
+      <div class="unit-row">
+        <span class="unit-label">단위 선택</span>
+        <div class="unit-toggle" id="unitToggle">
+          <button class="unit-btn active" data-unit="psi">PSI</button>
+          <button class="unit-btn" data-unit="mpa">MPa</button>
+        </div>
+      </div>
+      <div class="input-grid">
+        <div class="input-wrap">
+          <label>현재 압력</label>
+          <div class="field">
+            <input type="number" id="pressure" placeholder="예: 1500" min="0" inputmode="decimal"/>
+            <span class="unit-tag" id="unitTag1">PSI</span>
+          </div>
+        </div>
+        <div class="input-wrap">
+          <label>최대 압력 (만충)</label>
+          <div class="field">
+            <input type="number" id="maxPressure" value="2200" min="0" inputmode="decimal"/>
+            <span class="unit-tag" id="unitTag2">PSI</span>
+          </div>
+        </div>
+      </div>
+      <div class="prog-wrap" id="progWrap" style="display:none">
+        <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+        <div class="prog-pct" id="progPct"></div>
+      </div>
+    </div>
+
+    <!-- 유량 -->
+    <div class="section">
+      <div class="section-label">산소 유량 (L/min)</div>
+      <div class="input-wrap">
+        <label>분당 산소 유량</label>
+        <div class="field">
+          <input type="number" id="flowRate" placeholder="예: 2" min="0" inputmode="decimal"/>
+          <span class="unit-tag">L/min</span>
+        </div>
+      </div>
+      <div class="flow-btns" id="flowBtns">
+        <button class="flow-btn" data-v="1">1</button>
+        <button class="flow-btn" data-v="2">2</button>
+        <button class="flow-btn" data-v="3">3</button>
+        <button class="flow-btn" data-v="4">4</button>
+        <button class="flow-btn" data-v="5">5</button>
+        <button class="flow-btn" data-v="6">6</button>
+        <button class="flow-btn" data-v="8">8</button>
+        <button class="flow-btn" data-v="10">10</button>
+        <button class="flow-btn" data-v="15">15</button>
+      </div>
+    </div>
+
+    <!-- 결과 -->
+    <div id="resultArea"></div>
+  </div>
+
+  <div class="footer">※ 본 계산기는 참고용이며, 실제 의료 현장에서는 전문가 판단을 따르세요</div>
+</div>
+
+<script>
+  // ── 상수 ──
+  const UNITS = {
+    psi: { toBar: 0.0689476, fromBar: 14.5038, defaultMax: "2200", placeholder: "예: 1500" },
+    mpa: { toBar: 10,        fromBar: 0.1,     defaultMax: "15",   placeholder: "예: 10"   },
+  };
+
+  // ── 상태 ──
+  let state = {
+    tankVol: 5,
+    unit: "psi",
+    pressure: "",
+    maxPressure: "2200",
+    flowRate: "",
+  };
+
+  // ── DOM refs ──
+  const pressureEl   = document.getElementById("pressure");
+  const maxPressureEl= document.getElementById("maxPressure");
+  const flowRateEl   = document.getElementById("flowRate");
+  const progWrap     = document.getElementById("progWrap");
+  const progFill     = document.getElementById("progFill");
+  const progPct      = document.getElementById("progPct");
+  const resultArea   = document.getElementById("resultArea");
+  const unitTag1     = document.getElementById("unitTag1");
+  const unitTag2     = document.getElementById("unitTag2");
+
+  // ── 탱크 버튼 ──
+  document.getElementById("tankGrid").addEventListener("click", e => {
+    const btn = e.target.closest(".tank-btn");
+    if (!btn) return;
+    document.querySelectorAll(".tank-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    state.tankVol = parseFloat(btn.dataset.vol);
+    calculate();
+  });
+
+  // ── 단위 토글 ──
+  document.getElementById("unitToggle").addEventListener("click", e => {
+    const btn = e.target.closest(".unit-btn");
+    if (!btn || btn.dataset.unit === state.unit) return;
+    const from = UNITS[state.unit];
+    const to   = UNITS[btn.dataset.unit];
+    const conv = v => { const n = parseFloat(v); return n ? String(parseFloat((n * from.toBar * to.fromBar).toFixed(4))) : ""; };
+
+    pressureEl.value    = conv(pressureEl.value);
+    maxPressureEl.value = maxPressureEl.value ? conv(maxPressureEl.value) : to.defaultMax;
+    pressureEl.placeholder = to.placeholder;
+    state.unit = btn.dataset.unit;
+
+    document.querySelectorAll(".unit-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    unitTag1.textContent = btn.dataset.unit.toUpperCase();
+    unitTag2.textContent = btn.dataset.unit.toUpperCase();
+    calculate();
+  });
+
+  // ── 유량 빠른 버튼 ──
+  document.getElementById("flowBtns").addEventListener("click", e => {
+    const btn = e.target.closest(".flow-btn");
+    if (!btn) return;
+    flowRateEl.value = btn.dataset.v;
+    document.querySelectorAll(".flow-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    calculate();
+  });
+
+  // ── 입력 이벤트 ──
+  pressureEl.addEventListener("input",    () => { syncFlowBtns(); calculate(); });
+  maxPressureEl.addEventListener("input", () => { calculate(); });
+  flowRateEl.addEventListener("input",    () => { syncFlowBtns(); calculate(); });
+
+  function syncFlowBtns() {
+    const v = flowRateEl.value;
+    document.querySelectorAll(".flow-btn").forEach(b => {
+      b.classList.toggle("active", b.dataset.v === v);
+    });
+  }
+
+  // ── 계산 ──
+  function calculate() {
+    const p   = parseFloat(pressureEl.value);
+    const mp  = parseFloat(maxPressureEl.value);
+    const f   = parseFloat(flowRateEl.value);
+    const vol = state.tankVol;
+    const u   = UNITS[state.unit];
+
+    // Progress bar
+    if (!isNaN(p) && !isNaN(mp) && mp > 0 && p <= mp && p >= 0) {
+      const pct = Math.min(100, Math.round(p / mp * 100));
+      progWrap.style.display = "block";
+      progFill.style.width = pct + "%";
+      progFill.style.background = pct > 50
+        ? "linear-gradient(90deg,#38bdf8,#818cf8)"
+        : pct > 25
+        ? "linear-gradient(90deg,#f97316,#eab308)"
+        : "linear-gradient(90deg,#ef4444,#f97316)";
+      progPct.textContent = "잔압 " + pct + "%";
+    } else {
+      progWrap.style.display = "none";
+    }
+
+    // Result
+    if (vol > 0 && !isNaN(p) && p >= 0 && !isNaN(mp) && mp > 0 && !isNaN(f) && f > 0 && p <= mp) {
+      const remainingL = vol * (p * u.toBar);
+      const minutes    = remainingL / f;
+      renderResult(minutes, remainingL);
+    } else if (pressureEl.value || flowRateEl.value) {
+      resultArea.innerHTML = '<div class="empty">모든 값을 올바르게 입력해 주세요</div>';
+    } else {
+      resultArea.innerHTML = "";
+    }
+  }
+
+  function renderResult(minutes, liters) {
+    const s = getStatus(minutes);
+    const t = formatTime(minutes);
+    if (!t) { resultArea.innerHTML = '<div class="empty">모든 값을 올바르게 입력해 주세요</div>'; return; }
+
+    const litersStr = liters >= 10 ? Math.round(liters) : liters.toFixed(1);
+    const warn = minutes < 60
+      ? `<div class="result-warn" style="background:${s.color}18;color:${s.color}">⚠ 즉시 산소 보충이 필요합니다</div>`
+      : "";
+
+    resultArea.innerHTML = `
+      <div class="result" style="background:${s.bg};border:1.5px solid ${s.color}44">
+        <div class="result-status" style="color:${s.color}">${s.label}</div>
+        <div class="result-time"   style="color:${s.color}">${t}</div>
+        <div class="result-liters">잔여 산소량: 약 ${litersStr} L</div>
+        ${warn}
+      </div>`;
+  }
+
+  function formatTime(m) {
+    if (!isFinite(m) || m <= 0) return null;
+    const h = Math.floor(m / 60), min = Math.floor(m % 60);
+    if (h === 0) return min + "분";
+    if (min === 0) return h + "시간";
+    return h + "시간 " + min + "분";
+  }
+
+  function getStatus(m) {
+    if (!m || m <= 0) return { color:"#ef4444", label:"⚠ 산소 부족", bg:"#fef2f2" };
+    if (m < 30)       return { color:"#ef4444", label:"🔴 위험",      bg:"#fef2f2" };
+    if (m < 60)       return { color:"#f97316", label:"🟠 주의",      bg:"#fff7ed" };
+    if (m < 120)      return { color:"#eab308", label:"🟡 보통",      bg:"#fefce8" };
+    return                   { color:"#22c55e", label:"🟢 양호",      bg:"#f0fdf4" };
+  }
+
+  // ── PWA 설치 ──
+  let deferredPrompt;
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById("installBanner").style.display = "block";
+  });
+  document.getElementById("installBtn").addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.getElementById("installBanner").style.display = "none";
+  });
+  window.addEventListener("appinstalled", () => {
+    document.getElementById("installBanner").style.display = "none";
+  });
+
+  // Service Worker 등록
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  }
+</script>
+</body>
+</html>
